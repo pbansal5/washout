@@ -20,7 +20,7 @@ args = parser.parse_args()
 
 dataDir = '../data/'
 checkpointDir = '../checkpoints/'
-batch_size = 128
+batch_size = 32
 
 transform_train = transforms.Compose([
     transforms.RandomCrop(32, padding=4),
