@@ -43,11 +43,11 @@ testloader = torch.utils.data.DataLoader(
     testset, batch_size=batch_size, shuffle=True)
 
 net = ResNet18().cuda()
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(net.parameters(), lr=0.1,momentum=0.9, weight_decay=5e-4)
-max_epochs = 350
 
 def compute_gradient_avg (unforgetable):
+
+    # return unit norm avg_grad
+    
     criterion_grad = nn.CrossEntropyLoss(reduction='sum')
     for batch_idx, (inputs, targets) in enumerate(testloader):
         inputs, targets = inputs.cuda(), targets.cuda()
@@ -76,9 +76,59 @@ def compute_gradient_avg (unforgetable):
             grad_.append(x.grad.view(-1))
         grad += torch.cat(grad_)
     grad /= unforgetable.shape[0]
-    return grad
+    return grad/torch.
 
 
 array = np.load('stats/num_forget.npy')
 unforgetable = np.where(array<=1)[0]
-print (compute_gradient_avg(unforgetable))
+forgetable_examples = np.where(array>1)[0]
+avg_grad = compute_gradient_avg(unforgetable)
+
+def train(forgetable_examples,avg_grad):
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.SGD(net.parameters(), lr=0.1,momentum=0.9, weight_decay=5e-4)
+    max_epochs = 350
+    step = 0
+    writer = SummaryWriter(log_dir = 'runs/run1')
+    for epoch in range(max_epochs):
+        if (epoch == 40):
+            optimizer = optim.SGD(net.parameters(), lr=0.01,momentum=0.9, weight_decay=5e-4)
+        if (epoch == 100):
+            optimizer = optim.SGD(net.parameters(), lr=0.001,momentum=0.9, weight_decay=5e-4)
+            
+        print ("Starting Epoch : %d"%epoch)
+        shuff = torch.from_numpy(np.random.permutation(forgetable_examples))
+        net.train()
+        for i in range(0,len(forgetable_examples),batch_size):
+            batch_ind = shuff[i:min(i+batch_size,len(forgetable_examples))]
+            transformed_trainset = []
+            for ind in batch_ind:
+                transformed_trainset.append(trainset.__getitem__(ind)[0])
+            inputs = torch.stack(transformed_trainset)
+            targets = torch.LongTensor(np.array(trainset.train_labels)[batch_ind].tolist())
+            inputs, targets = inputs.cuda(), targets.cuda()
+            outputs = net(inputs)
+            _, predicted = outputs.max(1)
+            optimizer.zero_grad()
+            loss = criterion(outputs, targets)
+            loss.backward()
+            ############# DO SHIT ##############
+            grad_ = []
+            for x in net.parameters():
+                grad_.append(x.grad.view(-1))
+            grad_ = torch.cat(grad_)
+            grad_ -= torch.dot(grad_,avg_grad)*avg_grad
+            prev_index = 0
+            for x in net.parameters():
+                x.grad = grad_[prev_index:prev_index+x.grad.size()]
+            assert prev_index = grad_.shape[0]
+            ####################################
+            optimizer.step()
+            writer.add_scalar('iteration/loss',loss,step)
+            step += 1
+        loss,acc = test(net,testloader)
+        writer.add_scalar('validation/loss',loss,step)
+        writer.add_scalar('validation/acc',acc,step)
+
+
+train(forgetable_examples,avg_grad)
