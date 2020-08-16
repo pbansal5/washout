@@ -9,18 +9,18 @@ import torchvision.transforms as transforms
 from torch.utils.tensorboard import SummaryWriter
 import os
 import argparse
-from train import test
 from model import ResNet18
+
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--model-file', '-m', type=str,help='resume from checkpoint')
 parser.add_argument('--test', '-t', action='store_true',help='placeholder')
 args = parser.parse_args()
-
 dataDir = '../data/'
 checkpointDir = '../checkpoints/'
-batch_size = 128
+batch_size = 1024
 save_every= 10
 
 
@@ -46,9 +46,14 @@ testloader = torch.utils.data.DataLoader(
 
 net = ResNet18().cuda()
 optimizer = optim.SGD(net.parameters(), lr=0.1,momentum=0.9, weight_decay=5e-4)
+print(os.path.join(checkpointDir, 'forget_ckpt.pth'))
 checkpoint = torch.load(os.path.join(checkpointDir, 'forget_ckpt.pth'))
+print(checkpoint['epoch'])
+print(checkpoint['acc'])
 net.load_state_dict(checkpoint['net'])
 optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+criterion = nn.CrossEntropyLoss()
+
 
 def compute_gradient_avg (unforgetable):
     global optimizer
@@ -92,10 +97,29 @@ forgetable_examples = np.where(array>1)[0]
 print("Beginning computation for Average Gradient")
 avg_grad = compute_gradient_avg(unforgetable)
 print("Computed Average Gradient")
+def test (net,testloader):
+    net.eval()
+    test_loss = 0.0
+    correct = 0.0
+    total = 0
+    with torch.no_grad():
+        for batch_idx, (inputs, targets) in enumerate(testloader):
+            inputs, targets = inputs.cuda(), targets.cuda()
+            outputs = net(inputs)
+            loss = criterion(outputs, targets)
+
+            test_loss += loss.item()*targets.size(0)
+            _, predicted = outputs.max(1)
+            total += targets.size(0)
+            correct += predicted.eq(targets).sum().item()
+        test_loss /= total
+        correct /= total
+        print ("Avg Loss : %f,Acc : %f"%(test_loss,correct))
+    return test_loss,correct
+
 def train(forgetable_examples,avg_grad):
     global optimizer
     global net
-    criterion = nn.CrossEntropyLoss()
     best_acc= 0
     max_epochs = 350
     step = 0
