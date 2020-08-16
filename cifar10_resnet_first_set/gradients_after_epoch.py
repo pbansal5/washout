@@ -131,7 +131,7 @@ def train(forgetable_examples,avg_grad):
             prev_index = 0
             for x in net.parameters():
                 num_elem= torch.numel(x.grad)
-                x.grad = grad_[prev_index:(prev_index+num_elem)].view(x.grad.size()).clone()
+                x.grad = grad_[prev_index:(prev_index+num_elem)].view(x.grad.size()).clone().detach_()
                 prev_index+=num_elem
             assert prev_index == grad_.shape[0]
             ####################################
