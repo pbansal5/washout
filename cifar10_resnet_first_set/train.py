@@ -132,6 +132,8 @@ else:
         np.save('stats/num_forget.npy',num_tries.cpu().numpy())   
         if (epoch%save_every)==0:
             if acc > best_acc:
+                if not os.path.isdir(checkpointDir):
+                    os.mkdir(checkpointDir)
                 print('Saving..')
                 state = {
                     'net': net.state_dict(),
@@ -141,8 +143,7 @@ else:
                 }
                 torch.save(state, os.path.join(checkpointDir,'forget_ckpt.pth'))
                 best_acc = acc
-            if not os.path.isdir(checkpointDir):
-                os.mkdir(checkpointDir)
+
             
         epoch+=1
 
