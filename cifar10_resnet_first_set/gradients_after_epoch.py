@@ -44,7 +44,7 @@ testloader = torch.utils.data.DataLoader(
 
 net = ResNet18().cuda()
 
-def compute_gradient_avg (unforgetable):
+def compute_gradient_avg (unforgetable, optimizer):
 
     # return unit norm avg_grad
     
@@ -66,7 +66,7 @@ def compute_gradient_avg (unforgetable):
         for ind in batch_ind:
             transformed_trainset.append(trainset.__getitem__(ind)[0])
         inputs = torch.stack(transformed_trainset)
-        targets = torch.LongTensor(np.array(trainset.train_labels)[batch_ind].tolist())
+        targets = torch.LongTensor(np.array(trainset.targets)[batch_ind].tolist())
         inputs, targets = inputs.cuda(), targets.cuda()
         outputs = net(inputs)
         optimizer.zero_grad()
@@ -82,7 +82,7 @@ def compute_gradient_avg (unforgetable):
 array = np.load('stats/num_forget.npy')
 unforgetable = np.where(array<=1)[0]
 forgetable_examples = np.where(array>1)[0]
-avg_grad = compute_gradient_avg(unforgetable)
+avg_grad = compute_gradient_avg(unforgetable, optimizer)
 
 def train(forgetable_examples,avg_grad):
     criterion = nn.CrossEntropyLoss()
@@ -105,7 +105,7 @@ def train(forgetable_examples,avg_grad):
             for ind in batch_ind:
                 transformed_trainset.append(trainset.__getitem__(ind)[0])
             inputs = torch.stack(transformed_trainset)
-            targets = torch.LongTensor(np.array(trainset.train_labels)[batch_ind].tolist())
+            targets = torch.LongTensor(np.array(trainset.targets)[batch_ind].tolist())
             inputs, targets = inputs.cuda(), targets.cuda()
             outputs = net(inputs)
             _, predicted = outputs.max(1)
@@ -121,6 +121,7 @@ def train(forgetable_examples,avg_grad):
             prev_index = 0
             for x in net.parameters():
                 x.grad = grad_[prev_index:prev_index+x.grad.size()]
+                prev_index+=x.grad.size()
             assert prev_index == grad_.shape[0]
             ####################################
             optimizer.step()

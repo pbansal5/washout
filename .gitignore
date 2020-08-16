@@ -3,4 +3,4 @@ env
 checkpoints
 cifar10_resnet_first_set/runs
 cifar10_resnet_first_set/stats
-cifar10_resnet_first_set/__pycache__
+cifar10_resnet_first_set/__pycache__/

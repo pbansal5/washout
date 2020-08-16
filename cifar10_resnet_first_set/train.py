@@ -16,11 +16,14 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--model-file', '-m', type=str,help='resume from checkpoint')
 parser.add_argument('--test', '-t', action='store_true',help='placeholder')
+parser.add_argument('--load', '-l', action='store_true', help='Should load from checkpoint?')
 args = parser.parse_args()
+
 
 dataDir = '../data/'
 checkpointDir = '../checkpoints/'
-batch_size = 32
+batch_size = 128
+save_every=10
 
 transform_train = transforms.Compose([
     transforms.RandomCrop(32, padding=4),
@@ -45,7 +48,18 @@ testloader = torch.utils.data.DataLoader(
 net = ResNet18().cuda()
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=0.1,momentum=0.9, weight_decay=5e-4)
-max_epochs = 350
+max_epochs = 100
+
+if args.load:
+    print('==> Resuming from checkpoint..')
+    assert os.path.isdir(checkpointDir), 'Error: no checkpoint directory found!'
+    checkpoint = torch.load(os.path.join(checkpointDir, 'forget_ckpt.pth'))
+    net.load_state_dict(checkpoint['net'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    best_acc = checkpoint['acc']
+    start_epoch = checkpoint['epoch']+1
+else:
+    start_epoch= 0
 
 def test (net,testloader):
     net.eval()
@@ -78,11 +92,14 @@ else:
     num_tries = torch.from_numpy(np.zeros(len(trainset))).float().cuda()
     step = 0
     writer = SummaryWriter(log_dir = 'runs/run1')
-    for epoch in range(max_epochs):
+    best_acc = 0
+    epoch = start_epoch
+    while epoch< max_epochs:
         if (epoch == 40):
             optimizer = optim.SGD(net.parameters(), lr=0.01,momentum=0.9, weight_decay=5e-4)
         if (epoch == 100):
             optimizer = optim.SGD(net.parameters(), lr=0.001,momentum=0.9, weight_decay=5e-4)
+        
             
         print ("Starting Epoch : %d"%epoch)
         shuff = torch.from_numpy(np.random.permutation(np.arange(len(trainset))))
@@ -93,7 +110,7 @@ else:
             for ind in batch_ind:
                 transformed_trainset.append(trainset.__getitem__(ind)[0])
             inputs = torch.stack(transformed_trainset)
-            targets = torch.LongTensor(np.array(trainset.train_labels)[batch_ind].tolist())
+            targets = torch.LongTensor(np.array(trainset.targets)[batch_ind].tolist())
             inputs, targets = inputs.cuda(), targets.cuda()
             outputs = net(inputs)
             _, predicted = outputs.max(1)
@@ -112,4 +129,22 @@ else:
         loss,acc = test(net,testloader)
         writer.add_scalar('validation/loss',loss,step)
         writer.add_scalar('validation/acc',acc,step)
-        np.save('stats/num_forget.npy',num_tries.cpu().numpy())    
+        np.save('stats/num_forget.npy',num_tries.cpu().numpy())   
+        if (epoch%save_every)==0:
+            if acc > best_acc:
+                print('Saving..')
+                state = {
+                    'net': net.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'acc': acc,
+                    'epoch': epoch,
+                }
+            if not os.path.isdir(checkpointDir):
+                os.mkdir(checkpointDir)
+            torch.save(state, os.path.join(checkpointDir,'forget_ckpt.pth'))
+            best_acc = acc
+        epoch+=1
+
+
+
+         
