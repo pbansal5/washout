@@ -76,7 +76,7 @@ def compute_gradient_avg (unforgetable):
             grad_.append(x.grad.view(-1))
         grad += torch.cat(grad_)
     grad /= unforgetable.shape[0]
-    return grad/torch.
+    return grad/torch.norm(grad)
 
 
 array = np.load('stats/num_forget.npy')
