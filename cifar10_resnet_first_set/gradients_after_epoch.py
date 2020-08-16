@@ -121,7 +121,7 @@ def train(forgetable_examples,avg_grad):
             prev_index = 0
             for x in net.parameters():
                 x.grad = grad_[prev_index:prev_index+x.grad.size()]
-            assert prev_index = grad_.shape[0]
+            assert prev_index == grad_.shape[0]
             ####################################
             optimizer.step()
             writer.add_scalar('iteration/loss',loss,step)
