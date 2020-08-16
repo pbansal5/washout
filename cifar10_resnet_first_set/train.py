@@ -143,7 +143,7 @@ else:
                 }
                 torch.save(state, os.path.join(checkpointDir,'forget_ckpt.pth'))
                 best_acc = acc
-
+                print("Saved")
             
         epoch+=1
 
