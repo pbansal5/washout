@@ -139,10 +139,11 @@ else:
                     'acc': acc,
                     'epoch': epoch,
                 }
+                torch.save(state, os.path.join(checkpointDir,'forget_ckpt.pth'))
+                best_acc = acc
             if not os.path.isdir(checkpointDir):
                 os.mkdir(checkpointDir)
-            torch.save(state, os.path.join(checkpointDir,'forget_ckpt.pth'))
-            best_acc = acc
+            
         epoch+=1
 
 
