@@ -57,10 +57,28 @@ net = ResNet18().cuda()
 optimizer = optim.SGD(net.parameters(), lr=0.1,momentum=0.9, weight_decay=5e-4)
 checkpoint = torch.load(os.path.join(checkpointDir, 'forget_ckpt.pth'))
 start_epoch = int(checkpoint['epoch'])+1
-print ("Path : %s, Epoch : %d, Acc : %f"%(os.path.join(checkpointDir, 'forget_ckpt.pth'),start_epoch-1,checkpoint['acc']))
+print ("Path : %s, Epoch : %d, Acc : %f" %(os.path.join(checkpointDir, 'forget_ckpt.pth'),start_epoch-1,checkpoint['acc']))
 net.load_state_dict(checkpoint['net'])
 optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 criterion = nn.CrossEntropyLoss()
+
+def compute_correct_incorrect():
+    net.eval()
+    correct_ones = torch.from_numpy(np.full(len(trainset), False)).cuda()
+    with torch.no_grad():
+        for i in range(0,len(trainset),batch_size):
+            batch_ind = torch.from_numpy(np.arange(i, min(i+batch_size,len(trainset))))
+            transformed_trainset=[]
+            for ind in batch_ind:
+                transformed_trainset.append(trainset.__getitem__(ind)[0])
+            inputs = torch.stack(transformed_trainset)
+            targets = torch.LongTensor(np.array(trainset.targets)[batch_ind].tolist())
+            inputs, targets = inputs.cuda(), targets.cuda()
+            outputs = net(inputs)
+            _, predicted = outputs.max(1)
+            correct= predicted.eq(targets)
+            correct_ones[batch_ind[correct]] = True
+    return correct_ones.cpu().numpy()
 
 def compute_gradient_avg (unforgetable):
     global optimizer
@@ -68,18 +86,8 @@ def compute_gradient_avg (unforgetable):
     # return unit norm avg_grad
     
     criterion_grad = nn.CrossEntropyLoss(reduction='sum')
-    for batch_idx, (inputs, targets) in enumerate(testloader):
-        inputs, targets = inputs.cuda(), targets.cuda()
-        net(inputs).mean().backward()
-        break
-    grad = []
-    for x in net.parameters():
-        grad.append(x.grad.view(-1))
-    grad = torch.zeros(torch.cat(grad).shape).cuda()
-
     net.train()
     for i in range(0,len(unforgetable),batch_size):
-        grad_ = []
         batch_ind = unforgetable[i:min(i+batch_size,len(unforgetable))]
         transformed_trainset = []
         for ind in batch_ind:
@@ -88,21 +96,17 @@ def compute_gradient_avg (unforgetable):
         targets = torch.LongTensor(np.array(trainset.targets)[batch_ind].tolist())
         inputs, targets = inputs.cuda(), targets.cuda()
         outputs = net(inputs)
-        optimizer.zero_grad()
         loss = criterion_grad(outputs, targets)
         loss.backward()
-        for x in net.parameters():
-            grad_.append(x.grad.view(-1))
-        grad += torch.cat(grad_)
+
+    grad_ = []
+    for x in net.parameters():
+        grad_.append(x.grad.view(-1))
+    grad = torch.cat(grad_)
     grad /= unforgetable.shape[0]
     return grad/torch.norm(grad)
 
-array = np.load('stats/num_forget.npy')
-unforgetable = np.where(array<=1)[0]
-forgetable_examples = np.where(array>1)[0]
-print("Beginning computation for Average Gradient")
-avg_grad = compute_gradient_avg(unforgetable)
-print("Computed Average Gradient")
+
 
 def test (net,testloader):
     net.eval()
@@ -124,7 +128,7 @@ def test (net,testloader):
         print ("Avg Loss : %f,Acc : %f"%(test_loss,correct))
     return test_loss,correct
 
-def train(forgetable_examples,avg_grad,orthogonal):
+def train(orthogonal):
     global optimizer
     global net
     best_acc = 0
@@ -132,11 +136,18 @@ def train(forgetable_examples,avg_grad,orthogonal):
     step = 0
     writer = SummaryWriter(log_dir = 'runs/run1')
     for epoch in range(start_epoch,max_epochs):
+        array = compute_correct_incorrect()
+        unforgetable = np.where(array)[0]
+        forgetable_examples = np.where(~array)[0]
+        print("Beginning computation for Average Gradient")
+        avg_grad = compute_gradient_avg(unforgetable)
+        print("Computed Average Gradient")
+
         if (epoch == 30):
             optimizer = optim.SGD(net.parameters(), lr=0.01,momentum=0.9, weight_decay=5e-4)
         if (epoch == 50):
             optimizer = optim.SGD(net.parameters(), lr=0.001,momentum=0.9, weight_decay=5e-4)
-            
+        
         print ("Starting Epoch : %d"%epoch)
         shuff = torch.from_numpy(np.random.permutation(forgetable_examples))
         net.train()
@@ -184,8 +195,8 @@ def train(forgetable_examples,avg_grad,orthogonal):
                     'acc': acc,
                     'epoch': epoch,
                 }
-                torch.save(state, os.path.join(checkpointDir,'pgrad_ckpt.pth'))
+                torch.save(state, os.path.join(checkpointDir,'pgrad_correct_incorrect_ckpt.pth'))
                 best_acc = acc
 
 
-train(forgetable_examples,avg_grad,args.orthogonal)
+train(args.orthogonal)
