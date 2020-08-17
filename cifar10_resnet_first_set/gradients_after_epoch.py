@@ -8,10 +8,11 @@ import torchvision
 import torchvision.transforms as transforms
 from torch.utils.tensorboard import SummaryWriter
 import os
+import random
 import argparse
 from model import ResNet18
 
-
+os.environ['PYTHONHASHSEED']=str(42) 
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
@@ -22,6 +23,11 @@ dataDir = '../data/'
 checkpointDir = '../checkpoints/'
 batch_size = 1024
 save_every= 10
+random.seed(42)
+np.random.seed(42)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+torch.manual_seed(42)
 
 
 transform_train = transforms.Compose([
@@ -125,9 +131,9 @@ def train(forgetable_examples,avg_grad):
     step = 0
     writer = SummaryWriter(log_dir = 'runs/run1')
     for epoch in range(max_epochs):
-        if (epoch == 40):
+        if (epoch == 30):
             optimizer = optim.SGD(net.parameters(), lr=0.01,momentum=0.9, weight_decay=5e-4)
-        if (epoch == 100):
+        if (epoch == 50):
             optimizer = optim.SGD(net.parameters(), lr=0.001,momentum=0.9, weight_decay=5e-4)
             
         print ("Starting Epoch : %d"%epoch)

@@ -8,17 +8,22 @@ import torchvision
 import torchvision.transforms as transforms
 from torch.utils.tensorboard import SummaryWriter
 import os
+import random
 import argparse
 
 from model import ResNet18
-
+os.environ['PYTHONHASHSEED']=str(42) 
 parser = argparse.ArgumentParser()
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--model-file', '-m', type=str,help='resume from checkpoint')
 parser.add_argument('--test', '-t', action='store_true',help='placeholder')
 parser.add_argument('--load', '-l', action='store_true', help='Should load from checkpoint?')
 args = parser.parse_args()
-
+random.seed(42)
+np.random.seed(42)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+torch.manual_seed(42)
 
 dataDir = '../data/'
 checkpointDir = '../checkpoints/'
@@ -95,9 +100,9 @@ else:
     best_acc = 0
     epoch = start_epoch
     while epoch< max_epochs:
-        if (epoch == 40):
+        if (epoch == 30):
             optimizer = optim.SGD(net.parameters(), lr=0.01,momentum=0.9, weight_decay=5e-4)
-        if (epoch == 100):
+        if (epoch == 50):
             optimizer = optim.SGD(net.parameters(), lr=0.001,momentum=0.9, weight_decay=5e-4)
         
             
