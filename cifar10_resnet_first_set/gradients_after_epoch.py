@@ -23,7 +23,7 @@ parser.add_argument('--orthogonal', '-o', action='store_true',help='placeholder'
 args = parser.parse_args()
 dataDir = '../data/'
 checkpointDir = '../checkpoints/'
-batch_size = 1024
+batch_size = 128
 save_every= 10
 
 random.seed(42)
@@ -50,7 +50,7 @@ trainset = torchvision.datasets.CIFAR10(
 testset = torchvision.datasets.CIFAR10(
     root=dataDir, train=False, download=True, transform=transform_test)
 testloader = torch.utils.data.DataLoader(
-    testset, batch_size=batch_size, shuffle=True)
+    testset, batch_size=batch_size, shuffle=False)
 
 
 net = ResNet18().cuda()
@@ -131,7 +131,7 @@ def train(forgetable_examples,avg_grad,orthogonal):
     max_epochs = 350
     step = 0
     writer = SummaryWriter(log_dir = 'runs/run1')
-    for epoch in range(start_epoch,max_epochs):
+    for epoch in range(start_epoch,max_epochs+1):
         if (epoch == 30):
             optimizer = optim.SGD(net.parameters(), lr=0.01,momentum=0.9, weight_decay=5e-4)
         if (epoch == 50):
@@ -184,7 +184,10 @@ def train(forgetable_examples,avg_grad,orthogonal):
                     'acc': acc,
                     'epoch': epoch,
                 }
-                torch.save(state, os.path.join(checkpointDir,'pgrad_ckpt.pth'))
+                if (orthogonal):
+                    torch.save(state, os.path.join(checkpointDir,'pgrad_ortho_ckpt.pth'))
+                else:
+                    torch.save(state, os.path.join(checkpointDir,'pgrad_ckpt.pth'))
                 best_acc = acc
 
 

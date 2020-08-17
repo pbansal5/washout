@@ -45,7 +45,7 @@ trainset = torchvision.datasets.CIFAR10(
 testset = torchvision.datasets.CIFAR10(
     root=dataDir, train=False, download=True, transform=transform_test)
 testloader = torch.utils.data.DataLoader(
-    testset, batch_size=100, shuffle=False, num_workers=2)
+    testset, batch_size=100, shuffle=False)
 
 net = ResNet18().cuda()
 criterion = nn.CrossEntropyLoss()
@@ -132,6 +132,7 @@ else:
         writer.add_scalar('validation/loss',loss,step)
         writer.add_scalar('validation/acc',acc,step)
         np.save('stats/num_forget.npy',num_tries.cpu().numpy())   
+        epoch+=1
         if (epoch%save_every)==0:
             if acc > best_acc:
                 if not os.path.isdir(checkpointDir):
@@ -146,7 +147,6 @@ else:
                 torch.save(state, os.path.join(checkpointDir,'forget_ckpt.pth'))
                 best_acc = acc
                 print("Saved")
-        epoch+=1
 
 
 
