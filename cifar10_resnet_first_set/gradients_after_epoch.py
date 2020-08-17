@@ -18,11 +18,14 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--model-file', '-m', type=str,help='resume from checkpoint')
 parser.add_argument('--test', '-t', action='store_true',help='placeholder')
+parser.add_argument('--orthogonal', '-o', action='store_false',help='placeholder')
+
 args = parser.parse_args()
 dataDir = '../data/'
 checkpointDir = '../checkpoints/'
 batch_size = 1024
 save_every= 10
+
 random.seed(42)
 np.random.seed(42)
 torch.backends.cudnn.deterministic = True
@@ -44,21 +47,10 @@ transform_test = transforms.Compose([
 
 trainset = torchvision.datasets.CIFAR10(
     root=dataDir, train=True, download=True, transform=transform_train)
-
 testset = torchvision.datasets.CIFAR10(
     root=dataDir, train=False, download=True, transform=transform_test)
 testloader = torch.utils.data.DataLoader(
     testset, batch_size=batch_size, shuffle=True)
-
-net = ResNet18().cuda()
-optimizer = optim.SGD(net.parameters(), lr=0.1,momentum=0.9, weight_decay=5e-4)
-print(os.path.join(checkpointDir, 'forget_ckpt.pth'))
-checkpoint = torch.load(os.path.join(checkpointDir, 'forget_ckpt.pth'))
-print(checkpoint['epoch'])
-print(checkpoint['acc'])
-net.load_state_dict(checkpoint['net'])
-optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-criterion = nn.CrossEntropyLoss()
 
 
 def compute_gradient_avg (unforgetable):
@@ -97,12 +89,24 @@ def compute_gradient_avg (unforgetable):
     return grad/torch.norm(grad)
 
 
+net = ResNet18().cuda()
+optimizer = optim.SGD(net.parameters(), lr=0.1,momentum=0.9, weight_decay=5e-4)
+print(os.path.join(checkpointDir, 'forget_ckpt.pth'))
+checkpoint = torch.load(os.path.join(checkpointDir, 'forget_ckpt.pth'))
+start_epoch = checkpoint['epoch']
+print (start_epoch)
+print(checkpoint['acc'])
+net.load_state_dict(checkpoint['net'])
+optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+criterion = nn.CrossEntropyLoss()
+
 array = np.load('stats/num_forget.npy')
 unforgetable = np.where(array<=1)[0]
 forgetable_examples = np.where(array>1)[0]
 print("Beginning computation for Average Gradient")
 avg_grad = compute_gradient_avg(unforgetable)
 print("Computed Average Gradient")
+
 def test (net,testloader):
     net.eval()
     test_loss = 0.0
@@ -123,14 +127,14 @@ def test (net,testloader):
         print ("Avg Loss : %f,Acc : %f"%(test_loss,correct))
     return test_loss,correct
 
-def train(forgetable_examples,avg_grad):
+def train(forgetable_examples,avg_grad,orthogonal):
     global optimizer
     global net
-    best_acc= 0
+    best_acc = 0
     max_epochs = 350
     step = 0
     writer = SummaryWriter(log_dir = 'runs/run1')
-    for epoch in range(max_epochs):
+    for epoch in range(start_epoch,max_epochs):
         if (epoch == 30):
             optimizer = optim.SGD(net.parameters(), lr=0.01,momentum=0.9, weight_decay=5e-4)
         if (epoch == 50):
@@ -152,18 +156,19 @@ def train(forgetable_examples,avg_grad):
             optimizer.zero_grad()
             loss = criterion(outputs, targets)
             loss.backward()
-            ############# DO SHIT ##############
-            grad_ = []
-            for x in net.parameters():
-                grad_.append(x.grad.view(-1))
-            grad_ = torch.cat(grad_)
-            grad_ -= torch.dot(grad_,avg_grad)*avg_grad
-            prev_index = 0
-            for x in net.parameters():
-                num_elem= torch.numel(x.grad)
-                x.grad = grad_[prev_index:(prev_index+num_elem)].view(x.grad.size()).clone().detach_()
-                prev_index+=num_elem
-            assert prev_index == grad_.shape[0]
+            ############# DO ORTHOGONAL STUFF ##############
+            if (orthogonal) : 
+                grad_ = []
+                for x in net.parameters():
+                    grad_.append(x.grad.view(-1))
+                grad_ = torch.cat(grad_)
+                grad_ -= torch.dot(grad_,avg_grad)*avg_grad
+                prev_index = 0
+                for x in net.parameters():
+                    num_elem= torch.numel(x.grad)
+                    x.grad = grad_[prev_index:(prev_index+num_elem)].view(x.grad.size()).clone().detach_()
+                    prev_index+=num_elem
+                assert prev_index == grad_.shape[0]
             ####################################
             optimizer.step()
             writer.add_scalar('iteration/loss',loss,step)
@@ -186,4 +191,4 @@ def train(forgetable_examples,avg_grad):
                 best_acc = acc
 
 
-train(forgetable_examples,avg_grad)
+train(forgetable_examples,avg_grad,args.orthogonal)

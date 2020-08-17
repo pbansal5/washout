@@ -10,20 +10,22 @@ from torch.utils.tensorboard import SummaryWriter
 import os
 import random
 import argparse
-
 from model import ResNet18
+
 os.environ['PYTHONHASHSEED']=str(42) 
-parser = argparse.ArgumentParser()
-parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
-parser.add_argument('--model-file', '-m', type=str,help='resume from checkpoint')
-parser.add_argument('--test', '-t', action='store_true',help='placeholder')
-parser.add_argument('--load', '-l', action='store_true', help='Should load from checkpoint?')
-args = parser.parse_args()
 random.seed(42)
 np.random.seed(42)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 torch.manual_seed(42)
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
+parser.add_argument('--model-file', '-m', type=str,help='resume from checkpoint')
+parser.add_argument('--test', '-t', action='store_true',help='placeholder')
+parser.add_argument('--load', '-l', action='store_true', help='Should load from checkpoint?')
+parser.add_argument('--max-epoch', '-e', type=int, default=100, help='max_epoch')
+args = parser.parse_args()
 
 dataDir = '../data/'
 checkpointDir = '../checkpoints/'
@@ -34,17 +36,12 @@ transform_train = transforms.Compose([
     transforms.RandomCrop(32, padding=4),
     transforms.RandomHorizontalFlip(),
     transforms.ToTensor(),
-    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-])
-
+    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),])
 transform_test = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-])
-
+    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),])
 trainset = torchvision.datasets.CIFAR10(
     root=dataDir, train=True, download=True, transform=transform_train)
-
 testset = torchvision.datasets.CIFAR10(
     root=dataDir, train=False, download=True, transform=transform_test)
 testloader = torch.utils.data.DataLoader(
@@ -53,7 +50,7 @@ testloader = torch.utils.data.DataLoader(
 net = ResNet18().cuda()
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=0.1,momentum=0.9, weight_decay=5e-4)
-max_epochs = 100
+max_epochs = int(args.max_epoch)
 
 if args.load:
     print('==> Resuming from checkpoint..')
@@ -149,7 +146,6 @@ else:
                 torch.save(state, os.path.join(checkpointDir,'forget_ckpt.pth'))
                 best_acc = acc
                 print("Saved")
-            
         epoch+=1
 
 
