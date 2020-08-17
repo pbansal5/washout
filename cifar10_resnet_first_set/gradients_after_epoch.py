@@ -18,7 +18,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--model-file', '-m', type=str,help='resume from checkpoint')
 parser.add_argument('--test', '-t', action='store_true',help='placeholder')
-parser.add_argument('--orthogonal', '-o', action='store_false',help='placeholder')
+parser.add_argument('--orthogonal', '-o', action='store_true',help='placeholder')
 
 args = parser.parse_args()
 dataDir = '../data/'
@@ -52,6 +52,15 @@ testset = torchvision.datasets.CIFAR10(
 testloader = torch.utils.data.DataLoader(
     testset, batch_size=batch_size, shuffle=True)
 
+
+net = ResNet18().cuda()
+optimizer = optim.SGD(net.parameters(), lr=0.1,momentum=0.9, weight_decay=5e-4)
+checkpoint = torch.load(os.path.join(checkpointDir, 'forget_ckpt.pth'))
+start_epoch = int(checkpoint['epoch'])+1
+print ("Path : %s, Epoch : %d, Acc : %f",%(os.path.join(checkpointDir, 'forget_ckpt.pth'),start_epoch-1,checkpoint['acc']))
+net.load_state_dict(checkpoint['net'])
+optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+criterion = nn.CrossEntropyLoss()
 
 def compute_gradient_avg (unforgetable):
     global optimizer
@@ -87,18 +96,6 @@ def compute_gradient_avg (unforgetable):
         grad += torch.cat(grad_)
     grad /= unforgetable.shape[0]
     return grad/torch.norm(grad)
-
-
-net = ResNet18().cuda()
-optimizer = optim.SGD(net.parameters(), lr=0.1,momentum=0.9, weight_decay=5e-4)
-print(os.path.join(checkpointDir, 'forget_ckpt.pth'))
-checkpoint = torch.load(os.path.join(checkpointDir, 'forget_ckpt.pth'))
-start_epoch = checkpoint['epoch']
-print (start_epoch)
-print(checkpoint['acc'])
-net.load_state_dict(checkpoint['net'])
-optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-criterion = nn.CrossEntropyLoss()
 
 array = np.load('stats/num_forget.npy')
 unforgetable = np.where(array<=1)[0]
