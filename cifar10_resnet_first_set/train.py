@@ -92,10 +92,13 @@ if (args.test):
 else:
     predictions = torch.from_numpy(np.zeros(len(trainset))).float().cuda()
     num_tries = torch.from_numpy(np.zeros(len(trainset))).float().cuda()
+    first_learning = torch.from_numpy(np.zeros(len(trainset))).float().cuda()+np.inf
     step = 0
     writer = SummaryWriter(log_dir = 'runs/run1')
     best_acc = 0
     epoch = start_epoch
+    inf_tensor = torch.cuda.FloatTensor([float('inf')])
+    
     while epoch< max_epochs:
         if (epoch == 30):
             optimizer = optim.SGD(net.parameters(), lr=0.01,momentum=0.9, weight_decay=5e-4)
@@ -104,6 +107,7 @@ else:
         
             
         print ("Starting Epoch : %d"%epoch)
+        epoch_tensor = torch.cuda.FloatTensor([epoch])
         shuff = torch.from_numpy(np.random.permutation(np.arange(len(trainset))))
         net.train()
         for i in range(0,len(trainset),batch_size):
@@ -116,11 +120,16 @@ else:
             inputs, targets = inputs.cuda(), targets.cuda()
             outputs = net(inputs)
             _, predicted = outputs.max(1)
+
+            ###########this part maintains forgetting stats#################
             old_predictions = predictions[batch_ind]
             new_predictions = predicted.eq(targets).float()
             diff_pred = old_predictions - new_predictions
             num_tries[batch_ind[(diff_pred > 0).nonzero()]] += 1
             predictions[batch_ind] = new_predictions
+            ###########this part maintains first learning event##############
+            new_predictions = torch.where(new_predictions == 1,epoch_tensor,inf_tensor)
+            first_learning[batch_ind],_ = torch.min(torch.stack((first_learning[batch_ind],new_predictions)),dim=0)
             
             optimizer.zero_grad()
             loss = criterion(outputs, targets)
@@ -131,9 +140,10 @@ else:
         loss,acc = test(net,testloader)
         writer.add_scalar('validation/loss',loss,step)
         writer.add_scalar('validation/acc',acc,step)
-        np.save('stats/num_forget.npy',num_tries.cpu().numpy())   
         epoch+=1
         if (epoch%save_every)==0:
+            np.save('stats/num_forget.npy',num_tries.cpu().numpy())
+            np.save('stats/first_learn.npy',first_learning.cpu().numpy())
             if acc > best_acc:
                 if not os.path.isdir(checkpointDir):
                     os.mkdir(checkpointDir)
