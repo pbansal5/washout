@@ -23,7 +23,7 @@ parser.add_argument('--orthogonal', '-o', action='store_true',help='placeholder'
 args = parser.parse_args()
 dataDir = '../data/'
 checkpointDir = '../checkpoints/'
-batch_size = 1024
+batch_size = 128
 save_every= 10
 
 random.seed(42)
@@ -134,7 +134,7 @@ def train(orthogonal):
     best_acc = 0
     max_epochs = 350
     step = 0
-    writer = SummaryWriter(log_dir = 'runs/run1')
+    writer = SummaryWriter(log_dir = 'runs/run_correct_incorrect')
     for epoch in range(start_epoch,max_epochs):
         array = compute_correct_incorrect()
         unforgetable = np.where(array)[0]

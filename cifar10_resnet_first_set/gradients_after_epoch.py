@@ -59,7 +59,7 @@ checkpoint = torch.load(os.path.join(checkpointDir, 'forget_ckpt.pth'))
 start_epoch = int(checkpoint['epoch'])+1
 print ("Path : %s, Epoch : %d, Acc : %f"%(os.path.join(checkpointDir, 'forget_ckpt.pth'),start_epoch-1,checkpoint['acc']))
 net.load_state_dict(checkpoint['net'])
-optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+# optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 criterion = nn.CrossEntropyLoss()
 
 def compute_gradient_avg (unforgetable):
@@ -130,11 +130,16 @@ def train(forgetable_examples,avg_grad,orthogonal):
     best_acc = 0
     max_epochs = 350
     step = 0
-    writer = SummaryWriter(log_dir = 'runs/run1')
+    logdir= 'runs/'
+    if orthogonal:
+        logdir+='orthogonal'
+    else:
+        logdir+='simple_forget'
+    writer = SummaryWriter(log_dir = logdir)
     for epoch in range(start_epoch,max_epochs+1):
-        if (epoch == 30):
-            optimizer = optim.SGD(net.parameters(), lr=0.01,momentum=0.9, weight_decay=5e-4)
         if (epoch == 50):
+            optimizer = optim.SGD(net.parameters(), lr=0.01,momentum=0.9, weight_decay=5e-4)
+        if (epoch == 100):
             optimizer = optim.SGD(net.parameters(), lr=0.001,momentum=0.9, weight_decay=5e-4)
             
         print ("Starting Epoch : %d"%epoch)
